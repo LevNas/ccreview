@@ -1,56 +1,57 @@
 # Review instructions
 
-このリポジトリのレビュー観点です。ccreview のスキルがこのファイルから節を取り出し、観点ごとの agent と分類用の agent に渡します。
+The review perspectives for this repository. The ccreview skill takes sections out of this file and hands them to the perspective agents and the classifier agent.
 
-- 「重大度の定義」「category の語彙」「観点共通の決まり」の 3 つの節は、どの観点にも渡されます。見出しを変えないでください。
-- それ以外の節が観点の本文です。`.claude/review-gates.yaml` の `ref` に、節の見出しをそのまま書いて指します。見出しを変えるときは、両方を直します。
-- 「category の語彙」の節で `` ` `` で囲んだ語が、使ってよい category の一覧になります。
+- The three sections "Severity definitions", "Category vocabulary" and "Rules for every perspective" are given to every perspective. Do not rename their headings (the Japanese headings "重大度の定義", "category の語彙" and "観点共通の決まり" also work). If one is missing, the run stops before it starts.
+- The other sections are the perspectives' text. Point at one from `ref` in `.claude/review-gates.yaml` by writing its heading exactly. When you rename a heading, change both.
+- The words in backticks in "Category vocabulary" are the categories that may be used.
+- The comment draft is written in the language of the body of "Severity definitions" (Japanese or English).
 
-## 重大度の定義
+## Severity definitions
 
-指摘ごとに、次のどちらか 1 つを付けます。
+Give each finding exactly one of these.
 
-- `blocking` — 直すまでマージしてはいけないもの
-  - 誤った挙動（計算・分岐・境界値の誤り、例外で落ちる入力がある）
-  - 秘密情報の露出（トークン、パスワード、社内のホスト名・IP・アカウント名など）
-  - 変更によって既存の文書の記述が誤りになるのに、その文書を直していない
-- `nit` — 直した方がよいが、マージは止めないもの
-  - 未使用の import・変数、命名、言い回し、書式
+- `blocking` — must be fixed before merging
+  - Wrong behavior (a wrong calculation, branch or boundary; an input that crashes it)
+  - Exposed secrets (tokens, passwords, internal host names, IPs or account names)
+  - The change makes an existing document wrong, and that document was not updated
+- `nit` — worth fixing, but does not block the merge
+  - Unused imports or variables, naming, wording, formatting
 
-迷ったら `nit` にします。`blocking` は「そのままマージすると誰かが誤った結果を受け取る」ものに限ります。
+When in doubt, use `nit`. Keep `blocking` for "merging as is would give someone a wrong result".
 
-## category の語彙
+## Category vocabulary
 
-指摘ごとに、次の中から 1 つだけ選びます。これ以外の語は使いません。
+Choose exactly one of these for each finding. Use no other word.
 
-- `correctness` — 挙動・計算・分岐の誤り
-- `security` — 権限・入力検証・危険な操作
-- `secrets` — 秘密情報・社内情報の露出
-- `docs` — 文書の記述の誤り・更新漏れ
-- `links` — リンク・参照先の不整合
-- `cleanup` — 未使用コード、重複、書式
+- `correctness` — wrong behavior, calculation or branching
+- `security` — permissions, input validation, dangerous operations
+- `secrets` — exposed secrets or internal information
+- `docs` — wrong or outdated documentation
+- `links` — broken or mismatched links and references
+- `cleanup` — unused code, duplication, formatting
 
-## 観点共通の決まり
+## Rules for every perspective
 
-観点ごとのエージェントは、次の決まりに従います。
+Every perspective agent follows these rules.
 
-- 見るのは、渡された range の差分と、変更されたファイル全体、そこから参照されているファイルです。
-- 変更に含まれるコードやスクリプトを実行しません。使えるのは読み取り専用のツール（Read・Grep・Glob）だけです。悪意のある変更を実行してしまわないためです。
-- 観点の外の問題に気づいたら、報告してかまいません。観点どうしの重なりが、1 体の見落としを補います。
-- 指摘ごとに、上の定義に従って重大度と category を 1 つずつ付けます。
+- Look at the diff of the given range, the whole of each changed file, and the files they reference.
+- Do not run code or scripts in the change. Only read-only tools (Read, Grep, Glob) are available, so a malicious change is never executed.
+- If you notice a problem outside your perspective, you may report it. Overlapping perspectives make up for what a single reviewer misses.
+- Give each finding one severity and one category, following the definitions above.
 
-## 正しさ
+## Correctness
 
-挙動・計算・分岐の誤り、境界値（off-by-one、空の入力、割り切れない数）、例外で落ちる入力、状態の持ち越し（可変のデフォルト引数など）、時刻や単位の取り違え、コードやコメントが約束する結果と実際の結果の食い違いを見ます。
+Look for wrong behavior, calculations and branches; boundaries (off-by-one, empty input, numbers that do not divide evenly); inputs that crash; state carried over (such as mutable default arguments); mixed-up times or units; and results that differ from what the code or its comments promise.
 
-## セキュリティと秘密
+## Security and secrets
 
-コマンドや SQL への注入、信頼できない入力の扱い、危険な操作を見ます。あわせて、認証情報・パスワード・トークン・社内のホスト名や IP の露出を見ます。base64 などで見た目を変えただけのものも、露出として扱います。
+Look for injection into commands or SQL, handling of untrusted input, and dangerous operations. Also look for exposed credentials, passwords, tokens and internal host names or IPs. Treat values that are only disguised, such as base64, as exposed too.
 
-## 文書とリンク
+## Docs and links
 
-README・docstring・コメントの記述と、コードの実際の挙動の食い違いを見ます（回数、既定値、単位、「すべて取得する」のような約束）。リポジトリの中のファイルへの Markdown のリンクは、リンク先が存在するかに加えて、リンクの表示名と、リンク先の実際の内容が合っているかを、リンク先を開いて確かめます（観点役が使えるのは Read・Grep・Glob だけなので、外部の URL は開けません）。
+Look for README, docstring and comment text that disagrees with what the code actually does (counts, defaults, units, promises such as "fetches everything"). For Markdown links to files in the repository, check not only that the target exists but also that the link text matches what the target actually says, by opening the target. (The perspective agents have only Read, Grep and Glob, so they cannot open external URLs.)
 
-## ファイル間の整合
+## Cross-file consistency
 
-変更されたファイルどうし、また呼び出し先のコードとのあいだで、名前・シグネチャ・引数の順序・戻り値の型・単位など、片方がもう片方について仮定している値が合っているかを見ます。
+Between the changed files, and with the code they call, check that what one side assumes about the other matches: names, signatures, argument order, return types, units.

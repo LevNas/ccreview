@@ -1,4 +1,4 @@
-"""PreToolUse gate for the ccreview fix agent (decisions 21 and 24 in docs/decisions.md).
+"""PreToolUse gate for the ccreview fix agent (decisions 21 and 24 in docs/decisions.ja.md).
 
 Only calls from the fix agent type (agent_type "ccreview-fixer" or "<plugin>:ccreview-fixer") are judged;
 every other agent and the main session get no decision, so the normal permission flow applies.

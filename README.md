@@ -1,63 +1,65 @@
-# ccreview（v0.1、試作）
+# ccreview (v0.1, prototype)
 
-PR/MR やブランチを、マージの前にゲート判定するプラグインです。観点別のレビュー、宣言された command ゲート、上限付きの自動修正ループを Workflow で回し、合否とコメント案を返します。投稿とマージはしません。
+A Claude Code plugin that gates a PR/MR or branch before merge. It runs perspective reviewers, declared command gates and a bounded auto-fix loop as a Workflow, and returns a verdict and a comment draft. It never posts or merges.
 
-設計判断の要約は [`docs/decisions.md`](docs/decisions.md) にあります。この README とコードの「決定 N」や「e2e D5」などの呼び名は、そこを指します。
+The design decisions and the verification behind them are summarized in [`docs/decisions.ja.md`](docs/decisions.ja.md) (Japanese). Labels in this README and the code such as "decision N" (the heading "決定 N") or "e2e D5" point there.
 
-## 導入
+## Install
 
-marketplace `levnas-plugins` から入れます。
+Install from the `levnas-plugins` marketplace:
 
 ```text
 /plugin marketplace add LevNas/claudecode-plugins
 /plugin install ccreview@levnas-plugins
 ```
 
-入れたあと、セッションを始め直します（agent の型と hook は、セッションの開始時にしか読み込まれません）。
+Then start a new session (agent types and hooks are loaded only when a session starts).
 
-手元の clone を試すときは、レビューするリポジトリのルートで、プラグインを読み込んでセッションを始めます。
+To try a local clone, start a session at the root of the repository to review with the plugin loaded:
 
 ```sh
-claude --plugin-dir <ccreview のパス>
+claude --plugin-dir <path to ccreview>
 ```
 
-## 宣言の書き方
+## Declaring the review
 
-レビューされるリポジトリには、次の 2 つが要ります。[`examples/`](examples/) を写して直すのが早道です。
+The repository under review needs two files. Copying [`examples/`](examples/) and editing it is the quickest start.
 
-| ファイル | 中身 |
+| File | Contents |
 |---|---|
-| `REVIEW.md`（リポジトリのルート） | 重大度の定義、category の語彙、観点共通の決まり、観点ごとの本文の節（例: [`examples/REVIEW.md`](examples/REVIEW.md)） |
-| `.claude/review-gates.yaml` | ゲートの宣言。観点のゲートは `ref` で `REVIEW.md` の節の見出しを指します（例とキーの説明: [`examples/review-gates.yaml`](examples/review-gates.yaml)） |
+| `REVIEW.md` (repository root) | Severity definitions, the category vocabulary, rules for every perspective, and one section per perspective (example: [`examples/REVIEW.md`](examples/REVIEW.md)) |
+| `.claude/review-gates.yaml` | The gate declarations. A perspective gate names a `REVIEW.md` section heading in `ref` (example with the keys explained: [`examples/review-gates.yaml`](examples/review-gates.yaml)) |
 
-PR を `untrusted` と判定したときは、この 2 つを作業ツリーではなく base のブランチから読みます。PR がゲートを書き換えて弱めるのを防ぐためです。base に無ければ止まります。
+The three shared sections may use the English headings of the example or the Japanese headings "重大度の定義", "category の語彙" and "観点共通の決まり". Headings are matched ignoring case. A `ref` names its section heading exactly, so when you re-copy one example file, keep the `ref` values and the `REVIEW.md` headings in the same language. The comment draft is written in the language the user or the loaded instructions name; otherwise in Japanese when the body of the severity section is Japanese, and in English otherwise (decision 44).
 
-## 使い方
+When a PR is judged `untrusted`, both files are read from the base branch instead of the working tree, so the PR cannot weaken the gates by rewriting them. If they are missing on the base, the run stops.
 
-セッションの中で `/ccreview:ccreview`（スキル）に、PR 番号かブランチ名を渡します。
+## Usage
 
-修正 agent が `.claude/` の下のファイル（ナレッジベースの文書など）を直すときは、Claude Code の保護されたパスの確認が出ます（manual・acceptEdits のとき。auto では分類器が判断し、dontAsk ではその編集が拒否されて、残りの指摘だけが直されます）。settings の allow 規則では外せず、プラグインの hook が許しても外れませんでした（e2e D1）。確認は背景の修正 agent の編集について、ccreview を起動したセッションに出ます。利用者が承認するか、このセッションの間 `.claude` フォルダの編集を許すかを選ぶまで、run は止まります（決定 31）。
+In a session, give the skill `/ccreview:ccreview` a PR number or branch name.
 
-ほかのプラグインには依存しません。結果は合否とコメント案（リポジトリの外の一時ファイル）で返します。`fail` のときの次の一手も、同じファイルの投稿しない節に入ります。プランやタスクとして残すかどうかと置き場所は利用者が決めます（決定 29）。
+When the fix agent edits a file under `.claude/` (knowledge-base documents and the like), Claude Code's protected-path check applies (in manual and acceptEdits; in auto the classifier decides, and in dontAsk the edit is denied and only the other findings are fixed). Settings allow rules cannot lift it, and the plugin's hook allowing it did not lift it either (e2e D1). The prompt for the background fix agent's edit appears in the session that started ccreview, and the run waits until the user approves or allows editing the `.claude` folder for the session (decision 31).
 
-## 構成
+It depends on no other plugin. The result comes back as a verdict and a comment draft (a temporary file outside the repository). On `fail`, the next steps are in a not-to-be-posted section of the same file. Whether to keep them as a plan or task, and where, is the user's call (decision 29).
 
-| パス | 役割 |
+## Layout
+
+| Path | Role |
 |---|---|
-| `skills/ccreview/SKILL.md` | メイン側の手順（対象と信頼の判定、宣言の読み込み、許可リストの書き出し、workflow の起動、検算、報告とコメント案） |
-| `workflows/ccreview-loop.js` | 判定と修正のループ（`ccreview:ccreview-loop`）。スキルと同じ名前にすると、スキルが workflow に隠れるため、名前を分けている |
-| `agents/ccreview-reviewer.md` | 観点役・分類役・確認役。Read・Grep・Glob だけ（決定 16） |
-| `agents/ccreview-fixer.md` | 修正 agent。Bash と編集は hook で絞られる（決定 21） |
-| `hooks/gate.py` | 修正 agent の Bash / Edit / Write / NotebookEdit を、run ごとの許可リストで allow / deny に決める。ほかの agent とメインには何もしない（決定 21・24） |
-| `scripts/write_allowlist.py` | 許可リストを worktree の git dir に書く。`ask` 規則に当たる command ゲートは保留にする（決定 23・25） |
-| `scripts/verify_fixes.py` | 修正 agent の自己申告を git で検算する（決定 19） |
-| `scripts/extract_result.py` | workflow の出力ファイルから結果を取り出し、リポジトリの外のファイルに書く。メインが読み方を組まずに済むようにする（決定 42） |
-| `docs/decisions.md` | 設計判断（決定 1〜43）と、その根拠になった検証の記録の要約 |
-| `examples/` | `REVIEW.md` と `.claude/review-gates.yaml` の例 |
+| `skills/ccreview/SKILL.md` | The main session's steps (target and trust, reading the declarations, writing the allowlist, starting the workflow, the check, the report and comment draft) |
+| `workflows/ccreview-loop.js` | The review and fix loop (`ccreview:ccreview-loop`). Named apart from the skill because a workflow with the skill's name hides the skill |
+| `agents/ccreview-reviewer.md` | Perspective, classifier and confirmer agents. Read, Grep and Glob only (decision 16) |
+| `agents/ccreview-fixer.md` | The fix agent. Its Bash and edits are held by the hook (decision 21) |
+| `hooks/gate.py` | Decides allow / deny for the fix agent's Bash, Edit, Write and NotebookEdit from the per-run allowlist. Does nothing for other agents or the main session (decisions 21 and 24) |
+| `scripts/write_allowlist.py` | Writes the allowlist to the worktree's git dir. Defers command gates that match an `ask` rule (decisions 23 and 25) |
+| `scripts/verify_fixes.py` | Checks the fix agent's reports against git (decision 19) |
+| `scripts/extract_result.py` | Takes the result out of the workflow's output file and writes it to a file outside the repository, so the main session does not build its own way of reading it (decision 42) |
+| `docs/decisions.ja.md` | Design decisions (1–44) and a summary of the verification behind them (Japanese) |
+| `examples/` | Example `REVIEW.md` and `.claude/review-gates.yaml` |
 
-## テスト
+## Tests
 
-プラグインのルートで実行します。
+Run from the plugin root:
 
 ```sh
 node tests/loop-sim.mjs
@@ -67,6 +69,6 @@ python3 tests/verify_fixes_test.py
 python3 tests/extract_result_test.py
 ```
 
-## ライセンス
+## License
 
-MIT です（`LICENSE`）。
+MIT (`LICENSE`).

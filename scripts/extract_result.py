@@ -1,4 +1,4 @@
-"""Take a ccreview run's result out of the workflow's output file and write it where the skill reads it (decision 42 in docs/decisions.md).
+"""Take a ccreview run's result out of the workflow's output file and write it where the skill reads it (decision 42 in docs/decisions.ja.md).
 
 Usage (from the worktree root, right after the workflow's task-notification arrives):
     python3 extract_result.py --output <the notification's output-file, absolute> --out <a file outside the repository, absolute>

@@ -1,62 +1,64 @@
-# ccreview のゲートの宣言の例です。レビューされるリポジトリの .claude/review-gates.yaml に写して直します。
+# An example of ccreview's gate declarations. Copy it to .claude/review-gates.yaml in the repository under review and edit it.
 #
-# 観点の本文は REVIEW.md に書きます。このファイルには「何を実行し、何をもって合格とするか」だけを書きます。
-# ccreview のスキルがこのファイルを読み、paths に当たるゲートだけを workflow に渡します。
+# The perspectives' text lives in REVIEW.md. This file says only what to run and what counts as a pass.
+# The ccreview skill reads this file and hands the workflow only the gates whose paths match.
 #
-# max_rounds  判定と修正のラウンドの上限
-# gates の各項のキー:
-#   id        ゲートの名前。止まる条件の「同じ理由」のキー（id|パス|category）に入るので、変えると前の run との比較が切れます
-#   kind      perspective（REVIEW.md の節を観点にしたレビュー）| command（コマンドの終了コード）| review（組み込み /code-review）
-#   ref       perspective のみ。REVIEW.md の節の見出しを、そのまま書きます
-#   passes    perspective のみ。同じ観点を独立に何回見るか（指摘は合わせます）。省略時は 1
-#   run       command のみ。{files} は、paths に当たった変更ファイル（空白区切り）に置き換わります。
-#             スキルが workflow の前に、リポジトリのルートで 1 回実行します（PR を untrusted と判定したときは実行しません）。
-#             修正のあとの回は、修正 agent が実行して報告します。そのため 1 つのコマンドだけを書きます。
-#             ; & | ` $ < > や改行を含むコマンドと、settings の ask・deny 規則に当たるコマンドは、修正 agent には実行させず
-#             「保留」にし、スキルが最後にメインのセッションで実行して判定を確定させます（ask 規則のものは確認が出ます）
-#   effort    review のみ。省略時は medium
-#   pass      perspective と review は no-blocking（blocking の指摘が無ければ合格）か max-findings:N（そのゲートの指摘が、
-#             nit も含めて N 件以下なら合格。max-findings:0 は nit 1 件でも落ちます）。
-#             command は exit0（終了コードが 0 なら合格）。perspective や review に exit0 を書くと、決して落ちないゲートになります
-#   blocking  false なら、落ちてもマージを止めません（報告するだけです）
-#   autofix   agent なら修正 agent に直させます。none なら直させません
-#   paths     変更ファイルがこの glob に当たるときだけ実行します。省略すると常に実行します。
-#             照らすのはスキル（メインのセッション）で、glob の方言は決めていません。ルートのファイルも確実に
-#             含めたいときは、"*.py" と "**/*.py" のように並べて書きます
+# max_rounds  The limit on review-and-fix rounds
+# Keys of each gate under gates:
+#   id        The gate's name. It is part of the "same reason" key of the stop condition (id|path|category),
+#             so renaming it breaks the comparison with earlier runs
+#   kind      perspective (a review through a REVIEW.md section) | command (a command's exit code) | review (the built-in /code-review)
+#   ref       perspective only. A REVIEW.md section heading, written exactly as it appears
+#   passes    perspective only. How many independent passes through the same perspective (findings are merged). 1 when omitted
+#   run       command only. {files} is replaced with the changed files matching paths (space-separated).
+#             The skill runs it once at the repository root before the workflow (not when the PR is judged untrusted).
+#             In the rounds after a fix, the fix agent runs it and reports. So write a single command.
+#             A command containing ; & | ` $ < > or a newline, or matching an ask or deny rule in the settings, is not run
+#             by the fix agent: it is "deferred", and the skill runs it at the end in the main session to settle the verdict
+#             (ask-rule commands prompt for confirmation)
+#   effort    review only. medium when omitted
+#   pass      perspective and review: no-blocking (passes when there is no blocking finding) or max-findings:N (passes when
+#             the gate has N findings or fewer, nits included; max-findings:0 fails on a single nit).
+#             command: exit0 (passes on exit code 0). exit0 on a perspective or review gate makes a gate that never fails
+#   blocking  When false, a failure does not block the merge (it is only reported)
+#   autofix   agent lets the fix agent fix the findings. none does not
+#   paths     Run only when a changed file matches one of these globs. Always runs when omitted.
+#             The skill (the main session) does the matching, and no glob dialect is fixed. To be sure root files
+#             are included, list both, as in "*.py" and "**/*.py"
 
 max_rounds: 3
 
 gates:
-  # 観点別のレビュー。観点が重なることで、1 体の見落としを補います。
+  # Reviews by perspective. Overlapping perspectives make up for what a single reviewer misses.
   - id: correctness
     kind: perspective
-    ref: "正しさ"
+    ref: "Correctness"
     pass: no-blocking
     blocking: true
     autofix: agent
 
   - id: security
     kind: perspective
-    ref: "セキュリティと秘密"
+    ref: "Security and secrets"
     pass: no-blocking
     blocking: true
     autofix: agent
 
   - id: docs-links
     kind: perspective
-    ref: "文書とリンク"
+    ref: "Docs and links"
     pass: no-blocking
     blocking: true
     autofix: agent
 
   - id: cross-file
     kind: perspective
-    ref: "ファイル間の整合"
+    ref: "Cross-file consistency"
     pass: no-blocking
     blocking: true
     autofix: agent
 
-  # command ゲートの例。リンタやテストを、変更ファイルだけに当てます。
+  # A command gate. Runs a linter or tests on the changed files only.
   # - id: lint
   #   kind: command
   #   run: "ruff check {files}"
@@ -65,8 +67,8 @@ gates:
   #   autofix: agent
   #   paths: ["*.py", "**/*.py"]
 
-  # 組み込み /code-review を 1 つのゲートとして使う例。ローカルの main と比べる挙動があるので、
-  # 使うなら main を base に追従させておきます。
+  # The built-in /code-review as one gate. It can compare against the local main,
+  # so keep main up to date with the base if you use it.
   # - id: code-review
   #   kind: review
   #   effort: medium

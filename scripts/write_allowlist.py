@@ -1,6 +1,6 @@
 """Write the per-run allowlist that hooks/gate.py enforces on the ccreview fix agent.
 
-Decisions 21, 23 and 25 in docs/decisions.md. The ccreview skill runs this for a trusted change,
+Decisions 21, 23 and 25 in docs/decisions.ja.md. The ccreview skill runs this for a trusted change,
 after expanding the command gates and before starting the workflow:
 
     python3 write_allowlist.py --range <base>..HEAD --max-rounds 3 --gates '<json>'

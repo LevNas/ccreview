@@ -1,4 +1,4 @@
-"""Check what a ccreview run's reviewers read and what its fix agents reported against git (decision 19 in docs/decisions.md).
+"""Check what a ccreview run's reviewers read and what its fix agents reported against git (decision 19 in docs/decisions.ja.md).
 
 Usage (from the worktree root, on the reviewed branch, right after the workflow returns, trusted or not):
     python3 verify_fixes.py --base <merge-base SHA> --start <HEAD before the workflow> --result <result.json>

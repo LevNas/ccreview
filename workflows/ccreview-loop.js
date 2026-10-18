@@ -10,7 +10,7 @@ export const meta = {
   ],
 }
 
-// Design: docs/decisions.md. Labels in this file such as "decision 21", "spike 2" and "e2e D5" point there.
+// Design: docs/decisions.ja.md. Labels in this file such as "decision 21", "spike 2" and "e2e D5" point there.
 // meta.name must differ from the skill's name: plugin skills and workflows share the
 // <plugin>:<name> namespace, and a workflow named 'ccreview' hid skills/ccreview (e2e session B).
 // Default gates (decision 11) are four perspectives run once each; their union found all eight
