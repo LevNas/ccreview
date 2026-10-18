@@ -1,0 +1,6 @@
+# A repository that keeps this plugin in a subdirectory may ignore every path named "hooks"
+# (for example, leftovers of a bare-repository layout). The plugin's hooks/ must stay tracked.
+!hooks/
+# Compiled Python carries absolute source paths; never commit it.
+__pycache__/
+*.pyc

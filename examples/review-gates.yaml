@@ -1,0 +1,75 @@
+# ccreview のゲートの宣言の例です。レビューされるリポジトリの .claude/review-gates.yaml に写して直します。
+#
+# 観点の本文は REVIEW.md に書きます。このファイルには「何を実行し、何をもって合格とするか」だけを書きます。
+# ccreview のスキルがこのファイルを読み、paths に当たるゲートだけを workflow に渡します。
+#
+# max_rounds  判定と修正のラウンドの上限
+# gates の各項のキー:
+#   id        ゲートの名前。止まる条件の「同じ理由」のキー（id|パス|category）に入るので、変えると前の run との比較が切れます
+#   kind      perspective（REVIEW.md の節を観点にしたレビュー）| command（コマンドの終了コード）| review（組み込み /code-review）
+#   ref       perspective のみ。REVIEW.md の節の見出しを、そのまま書きます
+#   passes    perspective のみ。同じ観点を独立に何回見るか（指摘は合わせます）。省略時は 1
+#   run       command のみ。{files} は、paths に当たった変更ファイル（空白区切り）に置き換わります。
+#             スキルが workflow の前に、リポジトリのルートで 1 回実行します（PR を untrusted と判定したときは実行しません）。
+#             修正のあとの回は、修正 agent が実行して報告します。そのため 1 つのコマンドだけを書きます。
+#             ; & | ` $ < > や改行を含むコマンドと、settings の ask・deny 規則に当たるコマンドは、修正 agent には実行させず
+#             「保留」にし、スキルが最後にメインのセッションで実行して判定を確定させます（ask 規則のものは確認が出ます）
+#   effort    review のみ。省略時は medium
+#   pass      perspective と review は no-blocking（blocking の指摘が無ければ合格）か max-findings:N（そのゲートの指摘が、
+#             nit も含めて N 件以下なら合格。max-findings:0 は nit 1 件でも落ちます）。
+#             command は exit0（終了コードが 0 なら合格）。perspective や review に exit0 を書くと、決して落ちないゲートになります
+#   blocking  false なら、落ちてもマージを止めません（報告するだけです）
+#   autofix   agent なら修正 agent に直させます。none なら直させません
+#   paths     変更ファイルがこの glob に当たるときだけ実行します。省略すると常に実行します。
+#             照らすのはスキル（メインのセッション）で、glob の方言は決めていません。ルートのファイルも確実に
+#             含めたいときは、"*.py" と "**/*.py" のように並べて書きます
+
+max_rounds: 3
+
+gates:
+  # 観点別のレビュー。観点が重なることで、1 体の見落としを補います。
+  - id: correctness
+    kind: perspective
+    ref: "正しさ"
+    pass: no-blocking
+    blocking: true
+    autofix: agent
+
+  - id: security
+    kind: perspective
+    ref: "セキュリティと秘密"
+    pass: no-blocking
+    blocking: true
+    autofix: agent
+
+  - id: docs-links
+    kind: perspective
+    ref: "文書とリンク"
+    pass: no-blocking
+    blocking: true
+    autofix: agent
+
+  - id: cross-file
+    kind: perspective
+    ref: "ファイル間の整合"
+    pass: no-blocking
+    blocking: true
+    autofix: agent
+
+  # command ゲートの例。リンタやテストを、変更ファイルだけに当てます。
+  # - id: lint
+  #   kind: command
+  #   run: "ruff check {files}"
+  #   pass: exit0
+  #   blocking: true
+  #   autofix: agent
+  #   paths: ["*.py", "**/*.py"]
+
+  # 組み込み /code-review を 1 つのゲートとして使う例。ローカルの main と比べる挙動があるので、
+  # 使うなら main を base に追従させておきます。
+  # - id: code-review
+  #   kind: review
+  #   effort: medium
+  #   pass: no-blocking
+  #   blocking: true
+  #   autofix: agent
