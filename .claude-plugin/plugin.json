@@ -1,7 +1,7 @@
 {
   "name": "ccreview",
   "description": "Merge-time review gate: perspective reviewers, declared command gates and a bounded auto-fix loop, run as a Workflow. The fix agent's Bash and edits are held to a per-run allowlist by a PreToolUse hook.",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "author": {
     "name": "LevNas"
   },

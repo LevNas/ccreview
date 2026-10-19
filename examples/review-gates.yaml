@@ -1,13 +1,20 @@
 # An example of ccreview's gate declarations. Copy it to .claude/review-gates.yaml in the repository under review and edit it.
 #
 # The perspectives' text lives in REVIEW.md. This file says only what to run and what counts as a pass.
-# The ccreview skill reads this file and hands the workflow only the gates whose paths match.
+# The ccreview skill reads this file and hands the workflow only the gates whose paths match (pr-body gates are
+# never handed over; the skill runs them itself).
 #
 # max_rounds  The limit on review-and-fix rounds
 # Keys of each gate under gates:
 #   id        The gate's name. It is part of the "same reason" key of the stop condition (id|path|category),
 #             so renaming it breaks the comparison with earlier runs
 #   kind      perspective (a review through a REVIEW.md section) | command (a command's exit code) | review (the built-in /code-review)
+#             | pr-body (the PR body has the required sections; run by the skill in the main session; GitHub PRs only,
+#             not run for a GitLab MR or a branch with no PR; paths is not read)
+#   require   pr-body only. One item per required section: heading names separated by "|", any one of which will do.
+#             ATX headings (#) at any level; case, surrounding spaces, */_ emphasis and a trailing colon are ignored.
+#             A section passes when it has text of its own (a child section's text does not count; HTML comments,
+#             bare list markers and lone <placeholders> are empty)
 #   ref       perspective only. A REVIEW.md section heading, written exactly as it appears
 #   passes    perspective only. How many independent passes through the same perspective (findings are merged). 1 when omitted
 #   run       command only. {files} is replaced with the changed files matching paths (space-separated).
@@ -66,6 +73,12 @@ gates:
   #   blocking: true
   #   autofix: agent
   #   paths: ["*.py", "**/*.py"]
+
+  # A PR body gate. Checks that the body says what was shown and what was not; not whether it is true.
+  # - id: pr-evidence
+  #   kind: pr-body
+  #   require: ["Evidence", "Not tested"]
+  #   blocking: true
 
   # The built-in /code-review as one gate. It can compare against the local main,
   # so keep main up to date with the base if you use it.

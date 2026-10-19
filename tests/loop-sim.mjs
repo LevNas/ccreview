@@ -925,4 +925,12 @@ const go = (path, summary, origin) => ({ ...g(path, summary), origin })
   }
 }
 
-console.log('loop-sim: 52 scenarios passed')
+// 53. decision 45: a gate kind the workflow does not run (a pr-body gate passed by mistake) stops it at start,
+//     before any agent runs, naming the gate
+{
+  const prBody = { id: 'pr-evidence', kind: 'pr-body', require: ['Evidence'], blocking: true }
+  await assert.rejects(run(() => { throw new Error('no agent expected') }, { ...baseArgs, gates: [...baseArgs.gates, prBody] }),
+    /pr-evidence: pr-body/)
+}
+
+console.log('loop-sim: 53 scenarios passed')
