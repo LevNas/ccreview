@@ -77,6 +77,67 @@ class CheckPrBody(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertEqual(out["empty"], ["Not tested|試していない範囲"])
 
+    def test_more_empty_forms(self):
+        # bare list markers, an unchecked box, a stray comment end, zero-width and no-break spaces, a lone HTML tag
+        for filler in ("-\n*\n1.\n", "- [ ]\n", "-->\n", "​⁠\n", " \n", "<details>\n</details>\n"):
+            with self.subTest(filler=filler):
+                body = f"## Evidence\n\n- ran it\n\n### Not tested\n\n{filler}"
+                code, out, _ = self.run_body(body, *REQ)
+                self.assertEqual(code, 1)
+                self.assertEqual(out["empty"], ["Not tested|試していない範囲"])
+
+    def test_image_and_autolink_count_as_text(self):
+        for evidence in ('<img width="600" src="https://example.com/shot.png">', "<https://example.com/run/42>"):
+            with self.subTest(evidence=evidence):
+                body = f"## Evidence\n\n{evidence}\n\n### Not tested\n\n- other OS\n"
+                code, out, _ = self.run_body(body, *REQ)
+                self.assertEqual(code, 0, out)
+
+    def test_commented_out_sections_are_not_there(self):
+        # a template's commented-out sections, closed and unclosed
+        for body in ("<!--\n## Evidence\nx\n## Not tested\ny\n-->\n",
+                     "## Evidence\n\n- ran it\n\n<!--\n## Not tested\n- y\n-->\n",
+                     "## Evidence\n\n- ran it\n\n<!--\n## Not tested\n- y\n"):
+            with self.subTest(body=body):
+                code, out, _ = self.run_body(body, *REQ)
+                self.assertEqual(code, 1)
+                self.assertIn("Not tested|試していない範囲", out["missing"])
+
+    def test_heading_name_forms(self):
+        body = "## **Evidence**\n\n- ran it\n\n## _Not tested_:\n\n- other OS\n"
+        code, out, _ = self.run_body(body, *REQ)
+        self.assertEqual(code, 0, out)
+        # closing #s go only after a space: "C#" keeps its #
+        code, out, _ = self.run_body("## C#\n\n- x\n", "--require", "C#")
+        self.assertEqual(code, 0, out)
+        code, out, _ = self.run_body("## Evidence ##\n\n- x\n", "--require", "Evidence")
+        self.assertEqual(code, 0, out)
+
+    def test_setext_heading_is_not_a_section(self):
+        code, out, _ = self.run_body("Evidence\n--------\n\n- ran it\n", "--require", "Evidence")
+        self.assertEqual(code, 1)
+        self.assertEqual(out["missing"], ["Evidence"])
+
+    def test_fence_closer_with_info_string_does_not_close(self):
+        body = "## Summary\n\n```\n```x\n## Evidence\n- y\n### Not tested\n- z\n```\n"
+        code, out, _ = self.run_body(body, *REQ)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(out["missing"]), 2)
+
+    def test_crafted_lines_finish_quickly(self):
+        import time
+        body = "# " + " \t" * 30000 + "x\n" + "<!--" * 20000 + "\n"
+        start = time.monotonic()
+        code, _, _ = self.run_body(body, *REQ)
+        self.assertLess(time.monotonic() - start, 5)
+        self.assertEqual(code, 1)
+
+    def test_body_over_limit(self):
+        code, out, err = self.run_body("## Evidence\n\n" + "x" * 200_001, *REQ)
+        self.assertEqual(code, 2)
+        self.assertIsNone(out)
+        self.assertIn("over", err)
+
     def test_heading_inside_code_fence_is_not_a_section(self):
         body = "## Summary\n\n```markdown\n## Evidence\n- x\n### Not tested\n- y\n```\n"
         code, out, _ = self.run_body(body, *REQ)
@@ -146,11 +207,13 @@ class CheckPrBody(unittest.TestCase):
         self.assertEqual(len(out["missing"]), 2)
 
     def test_gh_failure(self):
-        env = self.fake_gh("echo 'no pull requests found' >&2\nexit 1\n")
+        env = self.fake_gh("printf 'no pull requests found\\033[31m\\nsecond line\\n' >&2\nexit 1\n")
         code, out, err = self.run_args("--pr", "7", *REQ, env=env)
         self.assertEqual(code, 2)
         self.assertIsNone(out)
-        self.assertIn("exited 1", err)
+        self.assertIn("exited 1: no pull requests found?[31m", err)
+        self.assertNotIn("\033", err)
+        self.assertNotIn("second line", err)
 
     def test_gh_not_json(self):
         env = self.fake_gh("echo 'not json'\n")

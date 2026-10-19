@@ -32,7 +32,19 @@ The repository under review needs two files. Copying [`examples/`](examples/) an
 
 The three shared sections may use the English headings of the example or the Japanese headings "重大度の定義", "category の語彙" and "観点共通の決まり". Headings are matched ignoring case. A `ref` names its section heading exactly, so when you re-copy one example file, keep the `ref` values and the `REVIEW.md` headings in the same language. The comment draft is written in the language the user or the loaded instructions name; otherwise in Japanese when the body of the severity section is Japanese, and in English otherwise (decision 44).
 
-A gate of `kind: pr-body` checks the PR body instead of the diff: each item of its `require` is a section (heading names separated by `|`) that must be there and not empty. It checks presence only, not whether what the section says is true, and it does not run for a branch with no PR (decision 45).
+A gate of `kind: pr-body` checks the PR body instead of the diff (decision 45):
+
+```yaml
+- id: pr-evidence
+  kind: pr-body
+  require: ["Evidence", "Not tested"]   # one item per section; "Evidence|確かめたこと" accepts either name
+  blocking: true
+```
+
+- Each section must be there and have text of its own; whether the text is true is not checked.
+- Only ATX headings (`#` to `######`) count. A child section's text does not count for its parent. One filled heading is enough when a name appears twice.
+- HTML comments are removed first, so a commented-out template section is missing. Headings inside code fences do not count. Bare list markers and lone `<placeholders>` are empty; an image tag or a link is text.
+- GitHub PRs only. It is not run for a GitLab MR or a branch with no PR, and `paths` is not read.
 
 When a PR is judged `untrusted`, both files are read from the base branch instead of the working tree, so the PR cannot weaken the gates by rewriting them. If they are missing on the base, the run stops.
 
