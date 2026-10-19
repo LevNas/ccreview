@@ -8,6 +8,9 @@
 #   id        The gate's name. It is part of the "same reason" key of the stop condition (id|path|category),
 #             so renaming it breaks the comparison with earlier runs
 #   kind      perspective (a review through a REVIEW.md section) | command (a command's exit code) | review (the built-in /code-review)
+#             | pr-body (the PR body has the required sections; run by the skill in the main session, not for a branch with no PR)
+#   require   pr-body only. One item per required section: heading names separated by "|", any one of which will do.
+#             Any heading level; case and surrounding spaces are ignored. A section passes when it has text of its own
 #   ref       perspective only. A REVIEW.md section heading, written exactly as it appears
 #   passes    perspective only. How many independent passes through the same perspective (findings are merged). 1 when omitted
 #   run       command only. {files} is replaced with the changed files matching paths (space-separated).
@@ -66,6 +69,12 @@ gates:
   #   blocking: true
   #   autofix: agent
   #   paths: ["*.py", "**/*.py"]
+
+  # A PR body gate. Checks that the body says what was shown and what was not; not whether it is true.
+  # - id: pr-evidence
+  #   kind: pr-body
+  #   require: ["Evidence", "Not tested"]
+  #   blocking: true
 
   # The built-in /code-review as one gate. It can compare against the local main,
   # so keep main up to date with the base if you use it.

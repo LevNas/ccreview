@@ -47,6 +47,14 @@ if (!Array.isArray(A.gates) || !A.range || !A.review) {
 if (A.trust !== 'trusted' && A.trust !== 'untrusted') {
   throw new Error("ccreview: args.trust must be 'trusted' or 'untrusted' (the ccreview skill decides it in step 1)")
 }
+// Decision 45: `pr-body` gates are run by the skill in the main session and never reach the workflow.
+// Stop on any kind with no runner here, rather than failing later inside a round.
+const KNOWN_KINDS = ['review', 'command', 'perspective']
+const unknownKinds = A.gates.filter(g => !KNOWN_KINDS.includes(g && g.kind))
+if (unknownKinds.length) {
+  const named = unknownKinds.map(g => `${g && g.id}: ${g && g.kind}`).join(', ')
+  throw new Error(`ccreview: gate kind(s) the workflow does not run: ${named} (pr-body gates run in the main session; see the ccreview skill)`)
+}
 const UNTRUSTED = A.trust === 'untrusted'
 const MAX_ROUNDS = A.maxRounds || 3
 // Typed agents inherit the session model (Opus in the second e2e run), not

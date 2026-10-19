@@ -32,6 +32,8 @@ The repository under review needs two files. Copying [`examples/`](examples/) an
 
 The three shared sections may use the English headings of the example or the Japanese headings "重大度の定義", "category の語彙" and "観点共通の決まり". Headings are matched ignoring case. A `ref` names its section heading exactly, so when you re-copy one example file, keep the `ref` values and the `REVIEW.md` headings in the same language. The comment draft is written in the language the user or the loaded instructions name; otherwise in Japanese when the body of the severity section is Japanese, and in English otherwise (decision 44).
 
+A gate of `kind: pr-body` checks the PR body instead of the diff: each item of its `require` is a section (heading names separated by `|`) that must be there and not empty. It checks presence only, not whether what the section says is true, and it does not run for a branch with no PR (decision 45).
+
 When a PR is judged `untrusted`, both files are read from the base branch instead of the working tree, so the PR cannot weaken the gates by rewriting them. If they are missing on the base, the run stops.
 
 ## Usage
@@ -54,7 +56,8 @@ It depends on no other plugin. The result comes back as a verdict and a comment 
 | `scripts/write_allowlist.py` | Writes the allowlist to the worktree's git dir. Defers command gates that match an `ask` rule (decisions 23 and 25) |
 | `scripts/verify_fixes.py` | Checks the fix agent's reports against git (decision 19) |
 | `scripts/extract_result.py` | Takes the result out of the workflow's output file and writes it to a file outside the repository, so the main session does not build its own way of reading it (decision 42) |
-| `docs/decisions.ja.md` | Design decisions (1–44) and a summary of the verification behind them (Japanese) |
+| `scripts/check_pr_body.py` | For a `kind: pr-body` gate: checks that the PR body has each required section and that it is not empty. Run by the skill in the main session, never by the workflow (decision 45) |
+| `docs/decisions.ja.md` | Design decisions (1–45) and a summary of the verification behind them (Japanese) |
 | `examples/` | Example `REVIEW.md` and `.claude/review-gates.yaml` |
 
 ## Tests
@@ -67,6 +70,7 @@ python3 tests/gate_test.py
 python3 tests/write_allowlist_test.py
 python3 tests/verify_fixes_test.py
 python3 tests/extract_result_test.py
+python3 tests/check_pr_body_test.py
 ```
 
 ## License
