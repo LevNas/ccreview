@@ -359,6 +359,8 @@ function judged(gate, f, round) {
 }
 
 const isGraded = f => SEVERITIES.includes(f.severity) && CATEGORIES.includes(f.category)
+// A finding the fix agent is asked to fix: its gate has autofix 'agent'.
+const autofixable = f => A.gates.find(g => g.id === f.gate)?.autofix === 'agent'
 
 async function classify(results, round) {
   const all = results.flatMap(r => r.findings
@@ -531,12 +533,14 @@ for (let round = 1; round <= MAX_ROUNDS && !verdict; round++) {
       break
     }
     // New failures only count as churn in files the fix touched; late finds elsewhere are progress.
-    const churn = [...new Set(failing.filter(f => touched.includes(f.path)).map(keyOf))]
+    // Decision 47: only findings of gates the fix agent works on count. A finding of a gate without
+    // autofix (spec-scope) was never handed to the fix, so it cannot be one the fix introduced.
+    const churn = [...new Set(failing.filter(f => touched.includes(f.path) && autofixable(f)).map(keyOf))]
     if (churn.length >= claimedFixed.length) { verdict = 'fail'; stopReason = `fixes introduced as many new failures as they removed: ${churn.sort().join(', ')}`; break }
   }
   if (round === MAX_ROUNDS) { verdict = 'fail'; stopReason = `reached max rounds (${MAX_ROUNDS})`; break }
 
-  const fixable = failing.filter(f => A.gates.find(g => g.id === f.gate).autofix === 'agent')
+  const fixable = failing.filter(autofixable)
   if (!fixable.length) { verdict = 'fail'; stopReason = 'blocking findings on gates without autofix'; break }
 
   const fix = await agent([

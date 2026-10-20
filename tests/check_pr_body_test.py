@@ -221,6 +221,32 @@ class CheckPrBody(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("did not return", err)
 
+    # Decision 47: the skill runs the same check on a spec file before adding the spec-scope gate.
+    SPEC_REQ = ["--require", "Out of Scope|範囲外", "--id", "spec-scope"]
+
+    def test_spec_out_of_scope_present(self):
+        spec = "# Plan\n\n## Approach\n\nDo X.\n\n## Out of Scope\n\n- Y: decided later.\n\n## Verification\n\n- tests\n"
+        code, out, _ = self.run_body(spec, *self.SPEC_REQ)
+        self.assertEqual(code, 0)
+        self.assertEqual(out, {"id": "spec-scope", "ok": True, "missing": [], "empty": [], "source": "file"})
+
+    def test_spec_japanese_heading(self):
+        code, out, _ = self.run_body("# 計画\n\n## 範囲外\n\n- Y はやらない（あとで決める）\n", *self.SPEC_REQ)
+        self.assertEqual(code, 0)
+        self.assertTrue(out["ok"])
+
+    def test_spec_heading_missing_or_partial(self):
+        for spec in ("# Plan\n\n## Approach\n\nDo X.\n",
+                     "# 計画\n\n## 範囲外（やらないこと）\n\n- Y\n"):  # names match exactly, not by part
+            code, out, _ = self.run_body(spec, *self.SPEC_REQ)
+            self.assertEqual(code, 1, spec)
+            self.assertEqual(out["missing"], ["Out of Scope|範囲外"], spec)
+
+    def test_spec_section_empty(self):
+        code, out, _ = self.run_body("# Plan\n\n## Out of Scope\n\n<!-- none yet -->\n\n## Verification\n\n- tests\n", *self.SPEC_REQ)
+        self.assertEqual(code, 1)
+        self.assertEqual(out["empty"], ["Out of Scope|範囲外"])
+
 
 if __name__ == "__main__":
     unittest.main()
