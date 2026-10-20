@@ -205,6 +205,65 @@ class WriteAllowlist(unittest.TestCase):
                                              "content": "a transcribed diff"}), "deny")
         self.assertIn("?? .ccreview/", self.git("status", "--short"), "untracked, so --remove must clean it up")
 
+    def gates_file(self, text):
+        """A gates file outside the repository, as the skill writes it."""
+        out = tempfile.TemporaryDirectory()
+        self.addCleanup(out.cleanup)
+        path = os.path.join(out.name, "gates.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def run_failing(self, *args):
+        env = dict(os.environ, CLAUDE_CONFIG_DIR=self.cfg, CCREVIEW_MANAGED_SETTINGS=os.path.join(self.dir, "_none.json"))
+        return subprocess.run([sys.executable, SCRIPT, "--range", self.range, *args],
+                              cwd=self.dir, capture_output=True, text=True, env=env)
+
+    def allowlist_path(self):
+        return os.path.join(self.dir, ".git", "ccreview", "allowlist.json")
+
+    def test_gates_file_gives_the_same_allowlist_as_gates(self):
+        gates = [
+            {"id": "lint", "run": "python3 tools/lint.py a.py", "template": "python3 tools/lint.py {files}", "blocking": True},
+            {"id": "clean", "run": "rm -f build/x", "blocking": True},
+            {"id": "文書", "run": "python3 tools/lint.py docs/b.md", "blocking": False},
+        ]
+        by_arg = self.write_for(gates)
+        al_arg = self.allowlist()
+        os.remove(self.allowlist_path())
+        by_file = self.run_script("--range", self.range, "--max-rounds", "2",
+                                  "--gates-file", self.gates_file(json.dumps(gates, ensure_ascii=False)))
+        al_file = self.allowlist()
+        self.assertEqual(by_file["allowedGates"], ["lint", "文書"])
+        self.assertEqual([d["id"] for d in by_file["deferred"]], ["clean"])
+        self.assertEqual(by_file["protected"], ["tools/lint.py"])
+        self.assertEqual(by_file, by_arg)
+        al_arg.pop("expires"), al_file.pop("expires")
+        self.assertEqual(al_file, al_arg)
+
+    def test_gates_and_gates_file_together_are_refused(self):
+        out = self.run_failing("--gates", "[]", "--gates-file", self.gates_file("[]"))
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("not allowed with argument", out.stderr)
+        self.assertFalse(os.path.exists(self.allowlist_path()))
+
+    def test_a_bad_gates_file_writes_no_allowlist(self):
+        missing = os.path.join(os.path.dirname(self.gates_file("[]")), "missing.json")
+        cases = {
+            "missing": (missing, "cannot read the file"),
+            "invalid JSON": (self.gates_file("[{\"id\": "), "not valid JSON"),
+            "object": (self.gates_file('{"id": "lint", "run": "make lint"}'), "must be a JSON list of gates, got dict"),
+        }
+        for name, (path, reason) in cases.items():
+            with self.subTest(name):
+                out = self.run_failing("--gates-file", path)
+                self.assertEqual(out.returncode, 2, out.stderr)
+                error_lines = [l for l in out.stderr.splitlines() if "error:" in l]
+                self.assertEqual(len(error_lines), 1, out.stderr)
+                self.assertIn(reason, error_lines[0])
+                self.assertEqual(out.stderr.rstrip("\n").splitlines()[-1], error_lines[0], "the reason is one line")
+                self.assertFalse(os.path.exists(self.allowlist_path()))
+
     def gate(self, tool, tool_input):
         payload = json.dumps({"cwd": self.dir, "agent_type": "ccreview:ccreview-fixer",
                               "tool_name": tool, "tool_input": tool_input})

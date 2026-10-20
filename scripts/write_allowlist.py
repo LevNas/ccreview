@@ -4,6 +4,7 @@ Decisions 21, 23 and 25 in docs/decisions.ja.md. The ccreview skill runs this fo
 after expanding the command gates and before starting the workflow:
 
     python3 write_allowlist.py --range <base>..HEAD --max-rounds 3 --gates '<json>'
+    python3 write_allowlist.py --range <base>..HEAD --max-rounds 3 --gates-file <path to a JSON file>
     python3 write_allowlist.py --remove            # after the run, trusted or not
 
 The fix agent of round N writes the diff the next reviewers read with
@@ -12,7 +13,9 @@ The fix agent of round N writes the diff the next reviewers read with
 for an untrusted change too, so it runs --remove after every run).
 
 --gates is a JSON list of the command gates, [{"id", "run", "template", "blocking"}]: `run` with {files}
-expanded, `template` as declared in review-gates.yaml.
+expanded, `template` as declared in review-gates.yaml. --gates-file reads the same list from a UTF-8 JSON
+file: a session isolated in a worktree refuses `--gates "$(cat ...)"`, and a long JSON string in one shell
+argument is easy to break with quoting. The two are mutually exclusive; with neither, there are no gates.
 
 A settings `ask` rule beats a hook's allow (decision-21 spike), so a gate that matches one would stop the
 background fix agent on a prompt. Such gates, gates matching a `deny` rule, and gates with shell
@@ -144,11 +147,34 @@ def classify_gates(gates, rules):
     return allowed, deferred
 
 
+def read_gates(ap, a):
+    """The gate list from --gates or --gates-file. Anything that is not a JSON list stops with exit 2
+    before the allowlist is written."""
+    if a.gates_file is None:
+        source, text = "--gates", a.gates
+    else:
+        source = f"--gates-file {a.gates_file}"
+        try:
+            with open(a.gates_file, encoding="utf-8") as f:
+                text = f.read()
+        except (OSError, UnicodeDecodeError) as exc:
+            ap.error(f"{source}: cannot read the file: {exc.__class__.__name__}: {exc}".splitlines()[0])
+    try:
+        gates = json.loads(text)
+    except ValueError as exc:
+        ap.error(f"{source}: not valid JSON: {exc}".splitlines()[0])
+    if not isinstance(gates, list):
+        ap.error(f"{source}: must be a JSON list of gates, got {type(gates).__name__}")
+    return gates
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--range")
     ap.add_argument("--max-rounds", type=int, default=3)
-    ap.add_argument("--gates", default="[]", help="JSON list of command gates [{id, run, template, blocking}]")
+    src = ap.add_mutually_exclusive_group()
+    src.add_argument("--gates", default="[]", help="JSON list of command gates [{id, run, template, blocking}]")
+    src.add_argument("--gates-file", help="path to a UTF-8 JSON file holding the same list as --gates")
     ap.add_argument("--remove", action="store_true", help="delete the allowlist and the diff directory after the run")
     ap.add_argument("--diff-dir", default=".ccreview",
                     help="directory for the round diffs inside the worktree: absolute, or relative to the worktree root")
@@ -187,7 +213,7 @@ def main(argv=None):
     if not a.range:
         ap.error("--range is required unless --remove is given")
 
-    gates = json.loads(a.gates)
+    gates = read_gates(ap, a)
     rules, read, errors = load_rules(settings_files(worktree))
     if errors:  # rules we could not read might have matched: defer every gate rather than risk a stall
         allowed, deferred = [], [{"id": g["id"], "reason": "a settings file could not be read"} for g in gates]
