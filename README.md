@@ -65,11 +65,11 @@ It depends on no other plugin. The result comes back as a verdict and a comment 
 | `agents/ccreview-reviewer.md` | Perspective, classifier and confirmer agents. Read, Grep and Glob only (decision 16) |
 | `agents/ccreview-fixer.md` | The fix agent. Its Bash and edits are held by the hook (decision 21) |
 | `hooks/gate.py` | Decides allow / deny for the fix agent's Bash, Edit, Write and NotebookEdit from the per-run allowlist. Does nothing for other agents or the main session (decisions 21 and 24) |
-| `scripts/write_allowlist.py` | Writes the allowlist to the worktree's git dir. Defers command gates that match an `ask` rule (decisions 23 and 25) |
+| `scripts/write_allowlist.py` | Writes the allowlist to the worktree's git dir. Defers command gates that match an `ask` rule (decisions 23 and 25). Takes the gates as `--gates '<json>'` or from a file with `--gates-file` (decision 46) |
 | `scripts/verify_fixes.py` | Checks the fix agent's reports against git (decision 19) |
 | `scripts/extract_result.py` | Takes the result out of the workflow's output file and writes it to a file outside the repository, so the main session does not build its own way of reading it (decision 42) |
 | `scripts/check_pr_body.py` | For a `kind: pr-body` gate: checks that the PR body has each required section and that it is not empty. Run by the skill in the main session, never by the workflow (decision 45) |
-| `docs/decisions.ja.md` | Design decisions (1–45) and a summary of the verification behind them (Japanese) |
+| `docs/decisions.ja.md` | Design decisions (1–46) and a summary of the verification behind them (Japanese) |
 | `examples/` | Example `REVIEW.md` and `.claude/review-gates.yaml` |
 
 ## Tests
