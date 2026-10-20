@@ -933,4 +933,43 @@ const go = (path, summary, origin) => ({ ...g(path, summary), origin })
     /pr-evidence: pr-body/)
 }
 
-console.log('loop-sim: 53 scenarios passed')
+// 54. decision 47: the spec-scope gate the skill adds (perspective, blocking, no auto-fix) fails the change
+//     on an out-of-scope finding without calling the fix agent, and still runs for an untrusted change
+{
+  const specScope = { id: 'spec-scope', kind: 'perspective', ref: 'Spec scope', sectionText: 'spec', passes: 1, pass: 'no-blocking', blocking: true, autofix: 'none' }
+  const out = { ...g('a.py', 'adds the retry the spec leaves out'), origin: 'introduced' }
+  for (const trust of ['trusted', 'untrusted']) {
+    const { result, calls, types } = await run((label) => {
+      if (label === 'r1:spec-scope#1') return { findings: [out] }
+      throw new Error(`unexpected ${label}`)
+    }, { ...baseArgs, trust, gates: [specScope], commandResults: [] })
+    assert.equal(result.verdict, 'fail', trust)
+    assert.deepEqual(result.rounds[0].keys, ['spec-scope|a.py|correctness'], trust)
+    assert.ok(!calls.some(l => l.endsWith(':fix')), `${trust}: no fix agent for a gate without autofix`)
+    assert.equal(types['r1:spec-scope#1'], 'ccreview:ccreview-reviewer', `${trust}: read-only reviewer`)
+    assert.equal(result.stopReason, trust === 'trusted'
+      ? 'blocking findings on gates without autofix'
+      : 'blocking findings; auto-fix and command gates are off for an untrusted change', trust)
+  }
+}
+
+// 55. decision 47: a spec-scope finding (no autofix) in the file a fix touched is not churn. Before, it made
+//     the stop reason "fixes introduced as many new failures as they removed", though the fix never saw it.
+{
+  const corrFix = { id: 'correctness', kind: 'perspective', sectionText: 'c', passes: 1, pass: 'no-blocking', blocking: true, autofix: 'agent' }
+  const specScope = { id: 'spec-scope', kind: 'perspective', sectionText: 'spec', passes: 1, pass: 'no-blocking', blocking: true, autofix: 'none' }
+  const out = { ...g('a.py', 'adds the retry the spec leaves out'), origin: 'introduced' }
+  const { result, calls } = await run((label) => {
+    if (label === 'r1:correctness#1') return { findings: [{ ...g('a.py', 'units'), origin: 'introduced' }] }
+    if (label === 'r2:correctness#1') return { findings: [] }
+    if (label.includes('spec-scope')) return { findings: [out] }
+    if (label === 'r1:fix') return { committed: true, sha: 'abc', files: ['a.py'], fixed: [1], skipped: [], commandResults: [] }
+    throw new Error(`unexpected ${label}`)
+  }, { ...baseArgs, gates: [corrFix, specScope], commandResults: [] })
+  assert.ok(calls.includes('r1:fix'), 'the fix agent works on the correctness finding')
+  assert.equal(result.verdict, 'fail')
+  assert.deepEqual(result.rounds[1].keys, ['spec-scope|a.py|correctness'])
+  assert.equal(result.stopReason, 'blocking findings on gates without autofix')
+}
+
+console.log('loop-sim: 55 scenarios passed')
