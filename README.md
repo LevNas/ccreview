@@ -52,6 +52,10 @@ When a PR is judged `untrusted`, both files are read from the base branch instea
 
 In a session, give the skill `/ccreview:ccreview` a PR number or branch name.
 
+The skill prepares the run with `scripts/prepare_review.py` and shows you its summary before starting: where the declarations came from, the trust decision and its grounds, the gates kept (with the number of changed files each matched) and the gates skipped (with the reason).
+
+To review a repository that has no `REVIEW.md` and `.claude/review-gates.yaml` of its own, you can tell the skill to borrow them from another checkout (decision 49). It never does so unasked, refuses it for an untrusted change, names the source on the first line of the summary, and skips the borrowed command gates, whose scripts belong to the other repository.
+
 You can also pass a spec: the absolute path of a file that records what the work was meant to do and to leave out, such as a plan (decision 47). When the spec has a section headed exactly "Out of Scope" or "範囲外" with text in it, the skill adds a perspective gate `spec-scope` that reports changes doing what that section leaves out. The gate is blocking, has no auto-fix, and runs for trusted and untrusted changes alike. Without such a section, the skill adds no gate and says why. Matching the change against the spec's other sections is not done.
 
 When the fix agent edits a file under `.claude/` (knowledge-base documents and the like), Claude Code's protected-path check applies (in manual and acceptEdits; in auto the classifier decides, and in dontAsk the edit is denied and only the other findings are fixed). Settings allow rules cannot lift it, and the plugin's hook allowing it did not lift it either (e2e D1). The prompt for the background fix agent's edit appears in the session that started ccreview, and the run waits until the user approves or allows editing the `.claude` folder for the session (decision 31).
@@ -62,7 +66,8 @@ It depends on no other plugin. The result comes back as a verdict and a comment 
 
 | Path | Role |
 |---|---|
-| `skills/ccreview/SKILL.md` | The main session's steps (target and trust, reading the declarations, writing the allowlist, starting the workflow, the check, the report and comment draft) |
+| `skills/ccreview/SKILL.md` | The main session's steps (the target, running the preparation script and reading its summary, starting the workflow, the check, the report and comment draft) |
+| `scripts/prepare_review.py` | Steps 1 to 3 in one script: trust, range and diff file, reading the declarations, keeping the gates whose `paths` match, running the command and PR body gates, the allowlist, and the workflow's args as JSON with a summary (decisions 48 and 49) |
 | `workflows/ccreview-loop.js` | The review and fix loop (`ccreview:ccreview-loop`). Named apart from the skill because a workflow with the skill's name hides the skill |
 | `agents/ccreview-reviewer.md` | Perspective, classifier and confirmer agents. Read, Grep and Glob only (decision 16) |
 | `agents/ccreview-fixer.md` | The fix agent. Its Bash and edits are held by the hook (decision 21) |
@@ -70,8 +75,8 @@ It depends on no other plugin. The result comes back as a verdict and a comment 
 | `scripts/write_allowlist.py` | Writes the allowlist to the worktree's git dir. Defers command gates that match an `ask` rule (decisions 23 and 25). Takes the gates as `--gates '<json>'` or from a file with `--gates-file` (decision 46) |
 | `scripts/verify_fixes.py` | Checks the fix agent's reports against git (decision 19) |
 | `scripts/extract_result.py` | Takes the result out of the workflow's output file and writes it to a file outside the repository, so the main session does not build its own way of reading it (decision 42) |
-| `scripts/check_pr_body.py` | For a `kind: pr-body` gate: checks that the PR body has each required section and that it is not empty. Run by the skill in the main session, never by the workflow (decision 45). The skill also runs it on a spec with `--body-file` before adding the `spec-scope` gate (decision 47) |
-| `docs/decisions.ja.md` | Design decisions (1–47) and a summary of the verification behind them (Japanese) |
+| `scripts/check_pr_body.py` | For a `kind: pr-body` gate: checks that the PR body has each required section and that it is not empty. Run by `prepare_review.py` in the main session, never by the workflow (decision 45). The script also runs it on a spec with `--body-file` before adding the `spec-scope` gate (decision 47) |
+| `docs/decisions.ja.md` | Design decisions (1–49) and a summary of the verification behind them (Japanese) |
 | `examples/` | Example `REVIEW.md` and `.claude/review-gates.yaml` |
 
 ## Tests
@@ -85,6 +90,7 @@ python3 tests/write_allowlist_test.py
 python3 tests/verify_fixes_test.py
 python3 tests/extract_result_test.py
 python3 tests/check_pr_body_test.py
+python3 tests/prepare_review_test.py
 ```
 
 ## License
