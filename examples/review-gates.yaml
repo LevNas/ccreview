@@ -1,8 +1,10 @@
 # An example of ccreview's gate declarations. Copy it to .claude/review-gates.yaml in the repository under review and edit it.
 #
 # The perspectives' text lives in REVIEW.md. This file says only what to run and what counts as a pass.
-# The ccreview skill reads this file and hands the workflow only the gates whose paths match (pr-body gates are
-# never handed over; the skill runs them itself).
+# The ccreview skill reads this file (through scripts/prepare_review.py) and hands the workflow only the gates whose
+# paths match (pr-body gates are never handed over; the script runs them itself).
+# The file is read by a small reader, not a YAML library: keep to the shapes below (flat `key: value` lines and
+# one-line ["a", "b"] lists). Any other shape stops the run with its line number.
 #
 # max_rounds  The limit on review-and-fix rounds
 # Keys of each gate under gates:
@@ -30,8 +32,8 @@
 #   blocking  When false, a failure does not block the merge (it is only reported)
 #   autofix   agent lets the fix agent fix the findings. none does not
 #   paths     Run only when a changed file matches one of these globs. Always runs when omitted.
-#             The skill (the main session) does the matching, and no glob dialect is fixed. To be sure root files
-#             are included, list both, as in "*.py" and "**/*.py"
+#             scripts/prepare_review.py does the matching with Python's fnmatch: `*` also matches `/`, so "*.py" covers
+#             files at any depth and "docs/**" everything under docs/ ("**/*.py" alone misses root files)
 
 max_rounds: 3
 
