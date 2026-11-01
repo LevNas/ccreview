@@ -20,7 +20,8 @@
 #   ref       perspective only. A REVIEW.md section heading, written exactly as it appears
 #   passes    perspective only. How many independent passes through the same perspective (findings are merged). 1 when omitted
 #   run       command only. {files} is replaced with the changed files matching paths (space-separated).
-#             The skill runs it once at the repository root before the workflow (not when the PR is judged untrusted).
+#             scripts/prepare_review.py runs it once before the workflow, at the root of the worktree under review
+#             (not when the PR is judged untrusted, nor when the declarations are borrowed).
 #             In the rounds after a fix, the fix agent runs it and reports. So write a single command.
 #             A command containing ; & | ` $ < > or a newline, or matching an ask or deny rule in the settings, is not run
 #             by the fix agent: it is "deferred", and the skill runs it at the end in the main session to settle the verdict
